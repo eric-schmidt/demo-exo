@@ -20,43 +20,21 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-## Installing `@contentful/experience-delivery`
+## Routing Experiences
 
-The ExO delivery SDK is not yet published to a public registry, so this app depends on a **local tarball** built from a sibling checkout of [`contentful-experience-delivery.js`](../contentful-experience-delivery.js):
+There are two routes into the same renderer:
 
-```json
-"@contentful/experience-delivery": "file:../contentful-experience-delivery.js/contentful-experience-delivery-0.0.0-fern-placeholder.4.tgz"
-```
+- **`/experiences/[id]`** — the canonical, ID-keyed route. Renders any published Experience by its Contentful sys ID. This is what Contentful's iframe-based preview URL points at, since the CMS only knows the Experience ID (not any downstream URL slug).
+- **`/[slug]`** — the pretty public route. Looks up the corresponding Experience ID in [`src/lib/experiences.ts`](./src/lib/experiences.ts) and delegates to the same renderer. Every known slug is prerendered via `generateStaticParams`; unknown slugs return a 404.
 
-To (re)generate the tarball after pulling SDK changes:
+The slug map is a **frontend-owned convenience layer**, not a source of truth. ExO does not yet store URL slugs on an Experience, so this app decides which experiences should also be reachable by a friendly URL — but every experience is always renderable at `/experiences/[id]` regardless of whether it's in the map.
 
-```bash
-cd ../contentful-experience-delivery.js
-pnpm install
-pnpm build
-npm pack          # emits contentful-experience-delivery-<version>.tgz
-```
+The Contentful Preview URL points at [`/api/draft`](./src/app/api/draft/route.ts) with the Experience ID and a shared secret (`CONTENTFUL_PREVIEW_SECRET`). That Route Handler validates the secret, enables Draft Mode, and redirects to `/experiences/[id]` — no map lookup, so any experience can be previewed without being pre-registered here.
 
-Then, back in this project, reinstall so npm unpacks the fresh archive:
-
-```bash
-npm install
-```
-
-> A `file:` reference to the SDK's source directory (or a symlink into `node_modules`) does **not** work with Next 16's Turbopack — it can't resolve packages that live outside the project root. The tarball is unpacked into `node_modules/@contentful/experience-delivery` as a normal package, which Turbopack handles without special config.
->
-> **TODO:** Switch to a normal semver dependency once the SDK is published to the internal (or public) npm registry, and delete this section.
-
-## Routing Experiences by Slug
-
-Contentful's Experiences (ExO) feature does not yet support storing a URL slug directly on an Experience, so this app maintains its own mapping between Experience IDs and slugs in [`src/lib/experiences.ts`](./src/lib/experiences.ts). Requests to `/[slug]` look up the corresponding Experience ID and fetch it via the delivery client. Every known slug is prerendered via `generateStaticParams` with `dynamicParams = false`, so unknown slugs return a 404 automatically.
-
-The Contentful Preview URL points at [`/api/draft`](./src/app/api/draft/route.ts) with the Experience ID and a shared secret (`CONTENTFUL_PREVIEW_SECRET`). That Route Handler validates the secret, maps ID → slug, enables Draft Mode, and redirects to `/[slug]` — keeping the page component slug-only.
-
-> **TODO:** Remove the local slug map once ExO supports slugs natively. When that lands:
-> - Slugs should be read directly from the Experience.
-> - `generateStaticParams` should fetch the full list from Contentful instead of enumerating a hardcoded object.
-> - `/api/draft` can accept the slug directly from Contentful's preview URL and skip the ID → slug reverse lookup.
+> **TODO:** When ExO supports slugs natively on an Experience:
+> - Read the slug directly from the Experience payload; retire `src/lib/experiences.ts`.
+> - Have `generateStaticParams` on `/[slug]` fetch the slug list from Contentful.
+> - `/experiences/[id]` can stay as-is (it's still useful as an ID-keyed fallback), or redirect to the canonical slug for SEO.
 
 ## Learn More
 
