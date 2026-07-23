@@ -9,7 +9,7 @@ import { experienceConfig } from "@/lib/experience-config";
 const spaceId = process.env.NEXT_PUBLIC_CONTENTFUL_SPACE_ID!;
 const environmentId = process.env.NEXT_PUBLIC_CONTENTFUL_ENV_ID!;
 const deliveryToken = process.env.NEXT_PUBLIC_CONTENTFUL_DELIVERY_KEY!;
-const previewToken = process.env.CONTENTFUL_PREVIEW_KEY!;
+const previewToken = process.env.NEXT_PUBLIC_CONTENTFUL_PREVIEW_KEY!;
 
 const PREVIEW_HOST = "https://preview.xdn.contentful.com";
 
@@ -25,7 +25,12 @@ export const getExperience = ({
   context?: ResolveOptions["context"];
 }) =>
   fetchExperience(
-    { spaceId, environmentId, experienceId, locale } satisfies ExperienceOptions,
+    {
+      spaceId,
+      environmentId,
+      experienceId,
+      locale,
+    } satisfies ExperienceOptions,
     preview
       ? { accessToken: previewToken, host: PREVIEW_HOST }
       : { accessToken: deliveryToken },

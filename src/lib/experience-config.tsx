@@ -1,7 +1,7 @@
 import {
-  // defineComponent,
   type Components,
   type Config,
+  // defineComponent,
   // type ResolveToken,
   // type Templates,
 } from "@contentful/experiences-react";
