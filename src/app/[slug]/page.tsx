@@ -1,3 +1,4 @@
+import { draftMode } from "next/headers";
 import { notFound } from "next/navigation";
 import { ServerExperienceRenderer } from "@contentful/experiences-react";
 
@@ -16,7 +17,9 @@ export default async function Page({
   const experienceId = experienceIdForSlug(slug);
   if (!experienceId) notFound();
 
-  const experience = await getExperience({ experienceId });
+  const { isEnabled: preview } = await draftMode();
+  const experience = await getExperience({ experienceId, preview });
+
   return (
     <ServerExperienceRenderer
       experience={experience}

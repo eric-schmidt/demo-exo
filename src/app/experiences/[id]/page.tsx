@@ -1,3 +1,4 @@
+import { draftMode } from "next/headers";
 import { notFound } from "next/navigation";
 import {
   NotFoundError,
@@ -7,15 +8,18 @@ import {
 import { getExperience } from "@/lib/client";
 import { experienceConfig } from "@/lib/experience-config";
 
+export const dynamic = "force-dynamic";
+
 export default async function ExperiencePage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const { isEnabled: preview } = await draftMode();
 
   try {
-    const experience = await getExperience({ experienceId: id });
+    const experience = await getExperience({ experienceId: id, preview });
     return (
       <ServerExperienceRenderer
         experience={experience}
