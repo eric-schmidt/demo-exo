@@ -23,7 +23,7 @@ export const Hero = ({
   const theme = themeClasses(design.theme);
 
   return (
-    <section className="container relative">
+    <section className="container relative rounded-lg overflow-clip">
       {/* Design values land on the content div, not the section — this is what
           owns the padding and text color. `bg-gradient-to-r` sets
           background-image, so an inline background-color layers underneath the
@@ -53,7 +53,7 @@ export const Hero = ({
         )}
       </div>
 
-      <div className="absolute inset-0 rounded-lg overflow-hidden">
+      <div className="absolute inset-0">
         <Image
           className="object-cover"
           loading="eager" // prevent Largest Contentful Paint issues
