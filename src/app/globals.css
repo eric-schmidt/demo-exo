@@ -1,27 +1,31 @@
 @import "tailwindcss";
-@plugin "@tailwindcss/typography";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* `static`, not `inline`: ExO design tokens resolve to `var(--x)` at render time,
+   so every variable must exist in `:root` whether or not a Tailwind utility in
+   this codebase happens to use it. `inline` emits none of them; plain `@theme`
+   tree-shakes the unused ones. See docs/adr/0001-*.md. */
+@theme static {
+  --color-light: #f9fafb;
+  --color-dark: #000;
+  --color-primary: #1e40af;
+  --color-secondary: #2563eb;
+  --color-accent: #3ffa15;
+  --spacing-small: calc(var(--spacing) * 6);
+  --spacing-medium: calc(var(--spacing) * 12);
+  --spacing-large: calc(var(--spacing) * 40);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--color-dark);
+  color: var(--color-light);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+ul {
+  list-style-type: disc;
+  margin: 1rem 0 0 1rem;
+}
+
+ul li {
+  margin: 0 0 0.25rem 0;
 }

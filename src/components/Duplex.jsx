@@ -1,10 +1,25 @@
+// `useDesignValues` is a client-only hook, so this leaf crosses the RSC
+// boundary. Token resolution itself still runs on the server.
+"use client";
+
 import Image from "next/image";
 import { documentToReactComponents } from "@contentful/rich-text-react-renderer";
+import { toCss, useDesignValues } from "@contentful/experiences-react";
 
 export const Duplex = ({ heading, copy, image, alternativeText, layout }) => {
+  // Already viewport-cascaded and token-resolved, so these are plain CSS strings
+  // like `var(--color-primary)`.
+  const design = useDesignValues();
+
   return (
-    <section className="grid grid-cols-1 md:grid-cols-2 gap-12 p-6 mt-12">
-      <div className="text-white flex flex-col justify-center">
+    <section
+      // The Tailwind classes are the defaults. Inline style outranks them, so an
+      // editor-set token wins automatically — no class merging needed. Both
+      // paths resolve the same `:root` variable.
+      className="bg-dark text-light rounded-lg grid grid-cols-1 md:grid-cols-2 gap-12 p-10 mt-12"
+      style={toCss(design)}
+    >
+      <div className="flex flex-col justify-center">
         <h2 className="text-2xl md:text-2xl font-bold tracking-tight drop-shadow-lg mb-4">
           {heading}
         </h2>
@@ -16,8 +31,8 @@ export const Duplex = ({ heading, copy, image, alternativeText, layout }) => {
       </div>
 
       <Image
-        // className={`order-first ${layout ? "md:order-first" : "md:order-last"}`}
         // TODO: Add proper height/width derived from image metadata
+        // className={`order-first ${layout ? "md:order-first" : "md:order-last"}`}
         className="rounded-lg"
         width={1000}
         height={1000}
