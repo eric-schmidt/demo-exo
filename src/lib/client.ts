@@ -1,4 +1,8 @@
-import { fetchExperience } from "@contentful/experiences-react";
+import {
+  createClient,
+  fetchExperience,
+  resolveExperience,
+} from "@contentful/experiences-react";
 import { experienceConfig } from "@/lib/experience-config";
 
 const spaceId = process.env.NEXT_PUBLIC_CONTENTFUL_SPACE_ID!;
@@ -28,3 +32,35 @@ export const getExperience = ({
       : { accessToken: deliveryToken },
     { config: experienceConfig },
   );
+
+/**
+ * `fetchExperience` only knows how to reach `/experiences/:id`, so a Fragment id
+ * handed to it 404s. Until the SDK grows a combined surface, compose the two
+ * halves it would have composed for us: the delivery client's own Fragment
+ * endpoint, then the same `resolveExperience` pass.
+ *
+ * Fragments are preview-only — `/fragments/:id` on the delivery host 404s even
+ * for a published Fragment — so this always uses the preview host and token,
+ * with no `preview` flag to get wrong.
+ */
+const previewClient = createClient({
+  accessToken: previewToken,
+  host: previewHost,
+});
+
+export const getFragment = async ({
+  fragmentId,
+  locale = "en-US",
+}: {
+  fragmentId: string;
+  locale?: string;
+}) => {
+  const payload = await previewClient.fragment.getFragment(
+    spaceId,
+    environmentId,
+    fragmentId,
+    { locale },
+  );
+
+  return resolveExperience(payload, experienceConfig);
+};

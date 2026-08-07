@@ -4,14 +4,29 @@ import { redirect } from "next/navigation";
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const secret = searchParams.get("secret");
-  const experienceId = searchParams.get("id");
+  const type = searchParams.get("type");
+  const exoId = searchParams.get("id");
 
   if (secret !== process.env.CONTENTFUL_PREVIEW_SECRET) {
     return new Response("Invalid token", { status: 401 });
   }
 
-  if (!experienceId) {
+  if (!exoId) {
     return new Response("Missing experience id", { status: 400 });
+  }
+
+  const exoEndpoints = {
+    experience: "/experiences",
+    fragment: "/experience_fragments",
+  };
+
+  const isExoType = (value: string): value is keyof typeof exoEndpoints =>
+    value in exoEndpoints;
+
+  if (!type || !isExoType(type)) {
+    return new Response("Missing preview type (experiences or fragments)", {
+      status: 400,
+    });
   }
 
   const draft = await draftMode();
@@ -31,5 +46,5 @@ export async function GET(request: Request) {
     path: "/",
   });
 
-  redirect(`/experiences/${experienceId}`);
+  redirect(`${exoEndpoints[type]}/${exoId}`);
 }
