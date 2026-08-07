@@ -1,3 +1,14 @@
+<!-- BEGIN:project-docs -->
+# Project context lives in `docs/`
+
+Before proposing or changing anything architectural, read the relevant files in `docs/`:
+
+- `docs/` — project context, design notes, and guides that aren't derivable from the code.
+- `docs/adr/` — Architecture Decision Records, numbered `NNNN-kebab-case-title.md`. Each records a decision that is already binding: read its **Decision** and **Consequences** before touching the area it covers. An ADR marked _Accepted_ is the current rule even when another approach looks better; if you disagree, say so and propose a superseding ADR rather than silently diverging.
+
+When a change invalidates an ADR, add a new ADR that supersedes it instead of editing the old one's Decision.
+<!-- END:project-docs -->
+
 <!-- BEGIN:nextjs-agent-rules -->
 # This is NOT the Next.js you know
 
