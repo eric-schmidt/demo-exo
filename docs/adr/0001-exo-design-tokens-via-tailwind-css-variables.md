@@ -90,6 +90,48 @@ properties, so it forces non-semantic design-property ids (`bg`, not
 - **DTCG token paths become load-bearing.** A token whose path does not
   kebab-case onto an existing variable resolves to nothing. Mitigated by a
   dev-only guard in `resolveToken`.
+
+- **Design property ids and design token ids are two different namespaces.**
+  `toCss()` keeps only keys that normalize onto one of the 145 CSS property
+  names in `CSS_PROPERTIES` (`@contentful/experiences-design`) — it filters on
+  the *property name*, never the value. So a **design property** must be named
+  for the declaration it drives (`padding`, `gap`, `rowGap`), while the **token**
+  it holds keeps the Tailwind-mirroring path from the Decision above
+  (`spacing.small`).
+
+  The failure this produces is the confusing one: a design property named
+  `spacing` holding token `spacing.small` resolves *correctly* to
+  `var(--spacing-small)`, and is then silently dropped — because `spacing` is
+  not a CSS property. The value is valid; the key is not. `toCssKey` strips a
+  leading `cf` and camelCases kebab-case, so `cf-padding` and `padding-block`
+  are both accepted spellings of the same property.
+
+  Two corollaries. Non-CSS design properties (`theme`, `variant`, `layout`) are
+  *deliberately* dropped and read off `useDesignValues()` directly for component
+  logic — that split is the SDK's intent, not a limitation. And one design
+  property cannot drive two declarations through `toCss`; that needs an explicit
+  `{ ...toCss(design), gap: design.spacing }`.
+
+- **A dropped design property may not be interpolated into a class name.** The
+  scanner argument for `@theme static` above applies a second time, one layer up:
+  Tailwind generates only the classes it finds as literal source text, so a class
+  assembled from a runtime design value (`` `bg-${design.theme.toLowerCase()}` ``)
+  compiles to nothing — no error, no declaration. Editorial switches must
+  therefore map onto whole literal class strings held in a module-scope lookup,
+  with an explicit default: `useDesignValues()` returns `{}` outside an
+  experience, so a two-branch ternary silently inverts on `undefined`. This is
+  the counterpart to option 3's rejection — a token id may not become a class
+  name, and neither may a design value.
+
+- **Provenance is erased by resolution.** Once `resolveToken` has run, a
+  token-backed value and an author-typed manual string are both plain strings;
+  `toCss` cannot tell them apart and will emit either. If a design property must
+  accept *only* tokens, constrain it upstream with `allowedResources` on the
+  ComponentType definition. At render time the sole signal is the raw envelope
+  bag (`useContentfulComponent().design`, discriminated on `type:
+  'DesignToken'`), cascade-resolved with `getValueForViewport` — a
+  `ValuesByViewport` property can be token-backed at one viewport and manual at
+  another.
 - **Inline `style` outranks every Tailwind utility.** Desirable here — classes
   are defaults, tokens are overrides, with no `cn()` merging needed — but a
   utility can no longer override an editor-set value.
