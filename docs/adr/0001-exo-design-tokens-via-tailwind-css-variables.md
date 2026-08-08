@@ -103,8 +103,9 @@ properties, so it forces non-semantic design-property ids (`bg`, not
   `spacing` holding token `spacing.small` resolves *correctly* to
   `var(--spacing-small)`, and is then silently dropped — because `spacing` is
   not a CSS property. The value is valid; the key is not. `toCssKey` strips a
-  leading `cf` and camelCases kebab-case, so `cf-padding` and `padding-block`
-  are both accepted spellings of the same property.
+  leading `cf` and camelCases on `-` and `_`, so `cf-padding`, `cf_padding`,
+  `padding-block`, and `padding_block` are all accepted spellings of the same
+  property.
 
   Two corollaries. Non-CSS design properties (`theme`, `variant`, `layout`) are
   *deliberately* dropped and read off `useDesignValues()` directly for component

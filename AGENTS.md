@@ -27,15 +27,15 @@ Contentful has two "Experiences" products. This repo uses **Experience Orchestra
 4. Internal Confluence pages that explicitly mention "ExO" or "Experience Orchestration" (e.g. "Manual Setup (Getting Started with ExO)", "Experiences SDK Suite Design Architecture").
 
 **Studio signals — auto-reject if any appear in a proposed answer, doc snippet, or search result:**
-- Package name: `@contentful/experiences-sdk-react` (note the extra `-sdk-`)
+- Package name `@contentful/experiences-sdk-react`, matched whole — not on the `-sdk-` substring. `@contentful/experiences-sdk-core` is real ExO, and `experiences-react` re-exports much of its public surface from it.
 - APIs: `defineComponents` (plural), `ExperienceRoot`, `useFetchBySlug`, `fetchBySlug`, `detachExperienceStyles`, component `definition: { id, name, category, variables }`
 - Options: `wrapComponent`, `wrapContainer`
 - Blanket "all components must be `'use client'`" rules (ExO components are server-first; `'use client'` is only needed when a component calls a client-only hook like `useDesignValues` or `useExperience`)
 
 **Correct ExO surface (for reference):**
-- Package: `@contentful/experiences-react`
+- Package: `@contentful/experiences-react`, which re-exports from `experiences-sdk-core`, `experiences-design`, `experiences-client`, and `experience-delivery`
 - APIs: `defineComponent` (singular) / `defineTemplate`, `fetchExperience`, `ServerExperienceRenderer` / `ClientExperienceRenderer`, `useDesignValues`, `toCss`, `useExperience`
-- Registration shape: `defineComponent<Props>({ component, defaults?, resolveData? })`
+- Registration: a bare component is the common case and what this repo uses (`{ hero: Hero }`). `defineComponent<Props>({ component, defaults?, resolveData? })` is the fuller shape, for prop narrowing, `defaults`, or a `resolveData` hook — not a conversion to make to working registrations.
 
-**Verification step before answering any ExO-SDK question:** grep the relevant symbol in `node_modules/@contentful/experiences-react/dist/`. If it doesn't appear there, it's from Studio (or hallucinated); do not use it.
+**Verification step before answering any ExO-SDK question:** grep the symbol across all of `node_modules/@contentful/`. Grepping `experiences-react/dist/` alone yields false negatives, because re-exported surface lives in the sibling packages — `client.fragment.getFragment`, used in `src/lib/client.ts`, is only in `experience-delivery`. A symbol in none of the `@contentful/` packages is Studio, hallucinated, or CMA-side: ComponentType authoring fields such as `allowedResources` are defined by the Management API and never appear in the render SDK.
 <!-- END:contentful-exo-not-studio -->

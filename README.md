@@ -1,35 +1,73 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+A [Next.js](https://nextjs.org) App Router demo of Contentful **Experience Orchestration** (ExO) — see [This is ExO, not Studio](#this-is-exo-not-studio) before trusting any SDK guidance you bring in from elsewhere.
 
 ## Getting Started
 
-First, run the development server:
+Node version is pinned in [`.nvmrc`](./.nvmrc); the lockfile is npm's.
 
 ```bash
+cp .env.local.example .env.local   # then fill in the values below
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000). `/` is a placeholder — the routes that actually render something are below.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Variable                                              | Used for                                            |
+| ----------------------------------------------------- | --------------------------------------------------- |
+| `NEXT_PUBLIC_CONTENTFUL_SPACE_ID` / `..._ENV_ID`      | every fetch                                         |
+| `NEXT_PUBLIC_CONTENTFUL_DELIVERY_KEY`                 | published reads                                     |
+| `NEXT_PUBLIC_CONTENTFUL_PREVIEW_KEY`                  | Draft Mode reads, and **all** Fragment reads        |
+| `CONTENTFUL_PREVIEW_SECRET`                           | shared secret on the `/api/draft` preview URL       |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+`.env.local.example` also carries `CONTENTFUL_REVALIDATION_SECRET` and
+`CONTENTFUL_MANAGEMENT_TOKEN`; nothing in `src/` reads either one yet.
 
 ## Routing Experiences
 
-There are two routes into the same renderer:
+Three routes into the same renderer:
 
 - **`/experiences/[id]`** — the canonical, ID-keyed route. Renders any published Experience by its Contentful sys ID. This is what Contentful's iframe-based preview URL points at, since the CMS only knows the Experience ID (not any downstream URL slug).
-- **`/[slug]`** — the pretty public route. Looks up the corresponding Experience ID in [`src/lib/experiences.ts`](./src/lib/experiences.ts) and delegates to the same renderer. Every known slug is prerendered via `generateStaticParams`; unknown slugs return a 404.
+- **`/[slug]`** — the pretty public route. Looks up the corresponding Experience ID in [`src/lib/experiences.ts`](./src/lib/experiences.ts) and delegates to the same renderer. Unknown slugs 404.
+- **`/experience_fragments/[id]`** — one Fragment rendered on its own. A Fragment normally arrives already embedded in an Experience payload, so this is an authoring aid rather than a visitor-facing URL. Fragments are **preview-only** — the delivery host 404s a Fragment even when it's published — so [`getFragment`](./src/lib/client.ts) always uses the preview host and token and takes no `preview` flag to get wrong.
+
+`generateStaticParams` on `/[slug]` enumerates the known slugs, but the route still
+renders on demand — `next build` reports it as `ƒ (Dynamic)`. It reads `headers()`
+(viewport sniffing) and `draftMode()` (preview), and both are request-time APIs that
+opt a route out of prerendering. `generateStaticParams` is therefore doing nothing
+for this route today; it's kept so the slugs are declared in one place and so the
+route prerenders again if those two reads ever move.
 
 The slug map is a **frontend-owned convenience layer**, not a source of truth. ExO does not yet store URL slugs on an Experience, so this app decides which experiences should also be reachable by a friendly URL — but every experience is always renderable at `/experiences/[id]` regardless of whether it's in the map.
 
-The Contentful Preview URL points at [`/api/draft`](./src/app/api/draft/route.ts) with the Experience ID and a shared secret (`CONTENTFUL_PREVIEW_SECRET`). That Route Handler validates the secret, enables Draft Mode, and redirects to `/experiences/[id]` — no map lookup, so any experience can be previewed without being pre-registered here.
+### Initial viewport
+
+`ServerExperienceRenderer` accepts an `initialViewportId` that decides which
+viewport's design values the server renders, defaulting to the payload's first
+viewport. `/[slug]` derives it from the User-Agent via
+[`src/lib/detect-viewport.ts`](./src/lib/detect-viewport.ts) so first paint matches
+the device, and the client renderer then transitions to live `matchMedia` — this is
+what keeps SSR output from drifting against hydration. Only `/[slug]` does this;
+`/experiences/[id]` and `/experience_fragments/[id]` let the default stand.
+
+### Draft Mode and preview
+
+Point the Contentful Preview URL at [`/api/draft`](./src/app/api/draft/route.ts)
+with three query params:
+
+| Param    | Value                                          |
+| -------- | ---------------------------------------------- |
+| `secret` | must equal `CONTENTFUL_PREVIEW_SECRET`         |
+| `id`     | the Experience or Fragment sys ID              |
+| `type`   | `experience` or `fragment`                     |
+
+The Route Handler validates the secret, enables Draft Mode, and redirects to
+`/experiences/:id` or `/experience_fragments/:id` accordingly. No map lookup, so
+anything can be previewed without being pre-registered in the slug map.
+
+One step there is load-bearing and easy to lose: Next sets its `__prerender_bypass`
+cookie `SameSite=Lax`, which the browser drops when the app loads inside ExO's
+cross-site preview iframe — Draft Mode then silently never turns on. The handler
+re-sets the same cookie value with `SameSite=None; Secure`.
 
 > **TODO:** When ExO supports slugs natively on an Experience:
 > - Read the slug directly from the Experience payload; retire `src/lib/experiences.ts`.
@@ -140,9 +178,11 @@ modifier; the baked hex alongside it is only the fallback for browsers without
 
 ### Naming and escape hatches
 
-- **`toCssKey` normalizes** — it strips a leading `cf` and camelCases
-  kebab-case, so `cf-padding`, `padding-block`, and `paddingBlock` all work. Useful
-  if you want design-property ids to look distinct in the editor.
+- **`toCssKey` normalizes** — it strips a leading `cf` (with an optional `-` or
+  `_`), camelCases on `-` and `_`, and lowercases a leading capital. So
+  `cf-padding`, `cf_padding`, `padding-block`, `padding_block`, `PaddingBlock`, and
+  `paddingBlock` all land on the same property. Useful if you want design-property
+  ids to look distinct in the editor.
 - **One property, several declarations** — `toCss` can't express this. Merge
   explicitly: `style={{ ...toCss(design), padding: design.spacing, gap: design.spacing }}`.
 - **A real CSS property the whitelist misses** — `CSS_PROPERTIES` is an exported,
@@ -237,20 +277,32 @@ wrong. Quick tells:
 Before trusting any SDK claim, grep the installed types — they cannot drift:
 
 ```bash
-grep -rn "<symbol>" node_modules/@contentful/experiences-react/dist
+grep -rn "<symbol>" node_modules/@contentful/
 ```
+
+Grep the whole scope, not `experiences-react/dist` alone. `experiences-react` is a
+facade that re-exports from `experiences-sdk-core`, `experiences-design`,
+`experiences-client`, and `experience-delivery`, so the narrower path reports real
+APIs as missing — `client.fragment.getFragment` in
+[`src/lib/client.ts`](./src/lib/client.ts) is only in `experience-delivery`.
+
+Two corollaries on that Package row. Match `@contentful/experiences-sdk-react` as a
+whole name: `-sdk-` is not the tell, because **`@contentful/experiences-sdk-core` is
+real ExO** and sits in this repo's tree. And a symbol missing from every
+`@contentful/` package is not automatically fake — it may be CMA-side, since
+ComponentType authoring fields like `allowedResources` are defined by the Management
+API and never appear in the render SDK.
 
 ## Learn More
 
-To learn more about Next.js, take a look at the following resources:
+This app is on a Next.js version whose APIs and conventions differ from what's
+published on nextjs.org and from what most models were trained on. Read the guides
+shipped with the installed version instead — they cannot drift:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+node_modules/next/dist/docs/
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [`docs/`](./docs) — project context and design notes that aren't derivable from the code.
+- [`docs/adr/`](./docs/adr) — Architecture Decision Records. An ADR marked _Accepted_ is the current rule; supersede it with a new ADR rather than diverging.
+- [`AGENTS.md`](./AGENTS.md) — the same rules, condensed for coding agents. [`CLAUDE.md`](./CLAUDE.md) just imports it, so there is one copy to maintain.
