@@ -45,7 +45,7 @@ export const Hero = ({
           // unlike the scrim above there is no inline style to outrank the
           // class — here the theme is the final word on color.
           <Link
-            className={`${theme.cta} btn p-2 w-fit inline-block`}
+            className={`${theme.cta} btn px-4 py-2 w-fit inline-block rounded-sm`}
             href={ctaLink}
           >
             {ctaText}
