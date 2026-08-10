@@ -8,8 +8,6 @@ import {
 import { getExperience } from "@/lib/client";
 import { experienceConfig } from "@/lib/experience-config";
 
-export const dynamic = "force-dynamic";
-
 export default async function ExperiencePage({
   params,
 }: {
