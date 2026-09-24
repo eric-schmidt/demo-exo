@@ -4,7 +4,7 @@
 // "Routing Experiences" section of the README; retire this file once ExO stores
 // slugs on the Experience payload.
 const experienceIdBySlug = new Map<string, string>([
-  ["demo", "1LFlAUCxo9sisbNSDO9wFn"],
+  ["demo", "36QL2tLrEwaEaoxolhJp8F"],
 ]);
 
 export const experienceIdForSlug = (slug: string): string | undefined =>

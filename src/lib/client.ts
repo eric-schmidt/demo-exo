@@ -36,12 +36,16 @@ export const getExperience = ({
 /**
  * `fetchExperience` only knows how to reach `/experiences/:id`, so a Fragment id
  * handed to it 404s. Until the SDK grows a combined surface, compose the two
- * halves it would have composed for us: the delivery client's own Fragment
- * endpoint, then the same `resolveExperience` pass.
+ * halves it would have composed for us: the delivery client's own Experience
+ * Fragment endpoint, then the same `resolveExperience` pass.
  *
- * Fragments are preview-only — `/fragments/:id` on the delivery host 404s even
- * for a published Fragment — so this always uses the preview host and token,
- * with no `preview` flag to get wrong.
+ * Use `experienceFragment`, not the legacy `fragment` client: the latter still
+ * returns tree nodes keyed `componentType`, which the renderer silently drops
+ * since the SPA-4822 rename.
+ *
+ * Fragments are preview-only — the endpoint 404s on the delivery host even for
+ * a published Fragment — so this always uses the preview host and token, with
+ * no `preview` flag to get wrong.
  */
 const previewClient = createClient({
   accessToken: previewToken,
@@ -55,7 +59,7 @@ export const getFragment = async ({
   fragmentId: string;
   locale?: string;
 }) => {
-  const payload = await previewClient.fragment.getFragment(
+  const payload = await previewClient.experienceFragment.get(
     spaceId,
     environmentId,
     fragmentId,
