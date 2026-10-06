@@ -5,6 +5,7 @@
 // slugs on the Experience payload.
 const experienceIdBySlug = new Map<string, string>([
   ["demo", "36QL2tLrEwaEaoxolhJp8F"],
+  ["product", "5xC4IZPYYqKgZNq8NXBeIj"],
 ]);
 
 export const experienceIdForSlug = (slug: string): string | undefined =>

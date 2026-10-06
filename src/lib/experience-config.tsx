@@ -9,11 +9,15 @@ import {
   // type Templates,
 } from "@contentful/experiences-react";
 
+import { Card } from "@/components/Card";
 import { Duplex } from "@/components/Duplex";
+import { Grid } from "@/components/Grid";
 import { Hero } from "@/components/Hero";
 
 const components: Components = {
+  card: Card,
   duplex: Duplex,
+  grid: Grid,
   hero: Hero,
 };
 
