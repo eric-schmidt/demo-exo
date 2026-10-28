@@ -12,7 +12,7 @@ import { themeClasses } from "@/lib/theme";
 // already-rendered React elements. This Grid's ExO component defines its slot
 // as `items` (not the conventional default `children`), so the prop is `items`.
 export const Grid = ({ items }) => {
-  // Already viewport-cascaded and token-resolved, so these are plain CSS strings
+  // Already token-resolved, so these are plain CSS strings
   // like `var(--color-primary)`.
   const design = useDesignValues();
 

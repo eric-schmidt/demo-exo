@@ -16,7 +16,7 @@ export const Hero = ({
   backgroundImage,
   alternativeText,
 }) => {
-  // Already viewport-cascaded and token-resolved, so these are plain CSS strings
+  // Already token-resolved, so these are plain CSS strings
   // like `var(--color-primary)`.
   const design = useDesignValues();
 
