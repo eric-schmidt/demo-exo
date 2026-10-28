@@ -17,6 +17,7 @@ Open [http://localhost:3000](http://localhost:3000). `/` is a placeholder — th
 | `NEXT_PUBLIC_CONTENTFUL_SPACE_ID` / `..._ENV_ID`      | every fetch                                         |
 | `NEXT_PUBLIC_CONTENTFUL_DELIVERY_KEY`                 | published reads                                     |
 | `NEXT_PUBLIC_CONTENTFUL_PREVIEW_KEY`                  | Draft Mode reads, and **all** Fragment reads        |
+| `NEXT_PUBLIC_CONTENTFUL_DESTINATION_ID`               | path routing on `/[...slug]`; required at build     |
 | `CONTENTFUL_PREVIEW_SECRET`                           | shared secret on the `/api/draft` preview URL       |
 
 `.env.local.example` also carries `CONTENTFUL_REVALIDATION_SECRET` and
@@ -27,18 +28,33 @@ Open [http://localhost:3000](http://localhost:3000). `/` is a placeholder — th
 Three routes into the same renderer:
 
 - **`/experiences/[id]`** — the canonical, ID-keyed route. Renders any published Experience by its Contentful sys ID. This is what Contentful's iframe-based preview URL points at, since the CMS only knows the Experience ID (not any downstream URL slug).
-- **`/[slug]`** — the pretty public route. Looks up the corresponding Experience ID in [`src/lib/experiences.ts`](./src/lib/experiences.ts) and delegates to the same renderer. Unknown slugs 404.
+- **`/[...slug]`** — the public route. Resolves the URL path through an ExO **Destination** with [`getExperienceByPath`](./src/lib/client.ts): an Experience node renders, a redirect node becomes a Next `redirect()` (307), and a path no node claims 404s. `/` stays the placeholder in `app/page.tsx`, so a Destination's root node isn't routed yet.
 - **`/experience_fragments/[id]`** — one Fragment rendered on its own. A Fragment normally arrives already embedded in an Experience payload, so this is an authoring aid rather than a visitor-facing URL. Fragments are **preview-only** — the delivery host 404s a Fragment even when it's published — so [`getFragment`](./src/lib/client.ts) always uses the preview host and token and takes no `preview` flag to get wrong.
 
-`generateStaticParams` on `/[slug]` enumerates the known slugs, and `next build`
-prerenders each one — the route reports as `● (SSG)`. Its only request-time read is
-`draftMode()`, which returns `isEnabled: false` at build time and switches a request
-carrying the Draft Mode cookie to on-demand rendering, so preview still sees draft
-content. There is no `revalidate`, so a prerendered slug shows the content
-published as of the last build until the next deploy; `/experiences/[id]` renders
-on demand and is always current.
+`generateStaticParams` on `/[...slug]` walks the Destination's sitemap, and
+`next build` prerenders every Experience node — the route reports as `● (SSG)`. A
+path published after the build still resolves on demand (`dynamicParams` defaults
+to `true`). Its only request-time read is `draftMode()`, which returns
+`isEnabled: false` at build time and switches a request carrying the Draft Mode
+cookie to on-demand rendering. There is no `revalidate`, so a prerendered path
+shows the content published as of the last build until the next deploy;
+`/experiences/[id]` renders on demand and is always current.
 
-The slug map is a **frontend-owned convenience layer**, not a source of truth. ExO does not yet store URL slugs on an Experience, so this app decides which experiences should also be reachable by a friendly URL — but every experience is always renderable at `/experiences/[id]` regardless of whether it's in the map.
+Paths are owned by Contentful, not this app: create Channels, Destinations, and
+Destination Nodes with the [Destinations Management API][dma], then **publish the
+Destination and each node** — delivery only sees published ones. Paths are
+locale-agnostic and must match exactly; the delivery endpoints take no locale, so
+locale routing (a `/de/…` prefix, a domain) is this app's job to strip first.
+
+**Preview by path is a bridge.** The Destinations Delivery API has no preview host
+yet, and the SDK throws `DestinationPreviewNotSupportedError` rather than send a
+preview token to it. In Draft Mode, `/[...slug]` finds the path in the *published*
+sitemap and fetches that Experience by id from the preview host — draft content,
+published routing. A node that has never been published can't be previewed by
+path; use `/experiences/[id]`, which is what `/api/draft` redirects to anyway. See
+[ADR 0003](./docs/adr/0003-route-public-paths-through-an-exo-destination.md).
+
+[dma]: https://www.contentful.com/developers/docs/references/destinations-management-api/overview/
 
 ### Responsive behavior
 
@@ -60,18 +76,18 @@ with three query params:
 | `type`   | `experience` or `fragment`                     |
 
 The Route Handler validates the secret, enables Draft Mode, and redirects to
-`/experiences/:id` or `/experience_fragments/:id` accordingly. No map lookup, so
-anything can be previewed without being pre-registered in the slug map.
+`/experiences/:id` or `/experience_fragments/:id` accordingly. No path lookup, so
+anything can be previewed whether or not a Destination node points at it.
 
 One step there is load-bearing and easy to lose: Next sets its `__prerender_bypass`
 cookie `SameSite=Lax`, which the browser drops when the app loads inside ExO's
 cross-site preview iframe — Draft Mode then silently never turns on. The handler
 re-sets the same cookie value with `SameSite=None; Secure`.
 
-> **TODO:** When ExO supports slugs natively on an Experience:
-> - Read the slug directly from the Experience payload; retire `src/lib/experiences.ts`.
-> - Have `generateStaticParams` on `/[slug]` fetch the slug list from Contentful.
-> - `/experiences/[id]` can stay as-is (it's still useful as an ID-keyed fallback), or redirect to the canonical slug for SEO.
+> **TODO:** When the Destinations Delivery API ships a preview host, drop the
+> sitemap bridge in `getExperienceByPath` and pass `preview` straight through.
+> `/experiences/[id]` can stay as an ID-keyed fallback, or redirect to the node's
+> path for SEO.
 
 ## Design values and styling
 
