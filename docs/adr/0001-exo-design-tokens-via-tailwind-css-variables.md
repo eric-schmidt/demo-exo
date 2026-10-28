@@ -4,7 +4,9 @@ Date: 2026-08-07
 
 ## Status
 
-Accepted. Provisional — see Consequences.
+Accepted. Provisional — see Consequences. Amended by
+[0002](./0002-unknown-tokens-resolve-to-null-and-no-viewports.md) for SDK 0.13+:
+unknown tokens resolve to `null`, and viewports no longer exist.
 
 ## Context
 

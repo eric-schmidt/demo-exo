@@ -9,7 +9,7 @@ import { toCss, useDesignValues } from "@contentful/experiences-react";
 import { themeClasses } from "@/lib/theme";
 
 export const Duplex = ({ heading, copy, image, alternativeText, layout }) => {
-  // Already viewport-cascaded and token-resolved, so these are plain CSS strings
+  // Already token-resolved, so these are plain CSS strings
   // like `var(--color-primary)`.
   const design = useDesignValues();
 

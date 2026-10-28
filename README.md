@@ -30,24 +30,23 @@ Three routes into the same renderer:
 - **`/[slug]`** — the pretty public route. Looks up the corresponding Experience ID in [`src/lib/experiences.ts`](./src/lib/experiences.ts) and delegates to the same renderer. Unknown slugs 404.
 - **`/experience_fragments/[id]`** — one Fragment rendered on its own. A Fragment normally arrives already embedded in an Experience payload, so this is an authoring aid rather than a visitor-facing URL. Fragments are **preview-only** — the delivery host 404s a Fragment even when it's published — so [`getFragment`](./src/lib/client.ts) always uses the preview host and token and takes no `preview` flag to get wrong.
 
-`generateStaticParams` on `/[slug]` enumerates the known slugs, but the route still
-renders on demand — `next build` reports it as `ƒ (Dynamic)`. It reads `headers()`
-(viewport sniffing) and `draftMode()` (preview), and both are request-time APIs that
-opt a route out of prerendering. `generateStaticParams` is therefore doing nothing
-for this route today; it's kept so the slugs are declared in one place and so the
-route prerenders again if those two reads ever move.
+`generateStaticParams` on `/[slug]` enumerates the known slugs, and `next build`
+prerenders each one — the route reports as `● (SSG)`. Its only request-time read is
+`draftMode()`, which returns `isEnabled: false` at build time and switches a request
+carrying the Draft Mode cookie to on-demand rendering, so preview still sees draft
+content. There is no `revalidate`, so a prerendered slug shows the content
+published as of the last build until the next deploy; `/experiences/[id]` renders
+on demand and is always current.
 
 The slug map is a **frontend-owned convenience layer**, not a source of truth. ExO does not yet store URL slugs on an Experience, so this app decides which experiences should also be reachable by a friendly URL — but every experience is always renderable at `/experiences/[id]` regardless of whether it's in the map.
 
-### Initial viewport
+### Responsive behavior
 
-`ServerExperienceRenderer` accepts an `initialViewportId` that decides which
-viewport's design values the server renders, defaulting to the payload's first
-viewport. `/[slug]` derives it from the User-Agent via
-[`src/lib/detect-viewport.ts`](./src/lib/detect-viewport.ts) so first paint matches
-the device, and the client renderer then transitions to live `matchMedia` — this is
-what keeps SSR output from drifting against hydration. Only `/[slug]` does this;
-`/experiences/[id]` and `/experience_fragments/[id]` let the default stand.
+ExO has no viewports. Delivery sends one flat value per design property, and the
+SDK (since 0.13) has no viewport definitions, `initialViewportId`, or
+active-viewport hooks. Responsive layout belongs to the components — here, Tailwind
+breakpoint classes (`md:`, `lg:`) — so server and client render identical markup
+and there is nothing to seed from the User-Agent.
 
 ### Draft Mode and preview
 
@@ -199,9 +198,7 @@ both plain strings — `toCss` cannot tell them apart. If a design property must
 accept *only* tokens, constrain it with `allowedResources` on the ComponentType
 rather than filtering at render time. If you do need the distinction in a
 component, the raw envelopes are on `useContentfulComponent().design`,
-discriminated on `type: 'DesignToken'` and cascade-resolved with
-`getValueForViewport` (a property can be token-backed at one viewport and manual
-at another).
+discriminated on `type: 'DesignToken'` versus `'ManualDesignValue'`.
 
 ### Client/server boundary
 
@@ -216,7 +213,9 @@ ExO stores design tokens as **opaque ids and discards their values**, so this ap
 owns every value. `resolveToken` in
 [`src/lib/experience-config.tsx`](./src/lib/experience-config.tsx) maps a token id
 onto a Tailwind v4 theme variable (`color.primary` → `var(--color-primary)`), with
-a dev-only guard that warns on ids with no matching variable.
+a dev-only guard that warns on ids with no matching variable and returns `null`
+for them — not `undefined`, which since SDK 0.13 leaves the raw token object in the
+design bag for `toCss` to copy into `style`.
 
 Two things are load-bearing and easy to break:
 

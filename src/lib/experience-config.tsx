@@ -58,14 +58,18 @@ const resolveToken: ResolveToken = (token) => {
 
   // `var(--nope)` is a perfectly valid string that the browser silently discards
   // at computed-value time, so a bad token id would otherwise fail with no
-  // diagnostic at all. Returning undefined instead lets the SDK's own grouped
-  // warning fire too.
+  // diagnostic at all.
+  //
+  // Return null, not undefined: since SDK 0.13, undefined keeps the raw
+  // `{ type: 'DesignToken' }` object in the design bag, and `toCss` would
+  // copy it into inline style. `toCss` skips null, so the key is dropped.
+  // See docs/adr/0002-*.md.
   if (knownVars && !knownVars.has(name)) {
     console.warn(
       `[tokens] No CSS variable ${name} for design token "${token.value}". ` +
         `Add it to the @theme block in globals.css, or fix the token path.`,
     );
-    return undefined;
+    return null;
   }
 
   return `var(${name})`;
