@@ -1,32 +1,26 @@
 import { cookies, draftMode } from "next/headers";
 import { redirect } from "next/navigation";
 
+/**
+ * Entry point for Contentful's "All Experience entities" preview URL. The canvas
+ * appends `preview_session_id`, and the session decides what renders, for
+ * experiences, fragments, components, and templates alike. Any `{entity.sys.*}`
+ * tokens on the configured URL are ignored. See docs/adr/0004-*.md.
+ */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const secret = searchParams.get("secret");
-  const type = searchParams.get("type");
-  const exoId = searchParams.get("id");
+  const sessionId = searchParams.get("preview_session_id");
 
   if (secret !== process.env.CONTENTFUL_PREVIEW_SECRET) {
     return new Response("Invalid token", { status: 401 });
   }
 
-  if (!exoId) {
-    return new Response("Missing experience id", { status: 400 });
-  }
-
-  const exoEndpoints = {
-    experience: "/experiences",
-    fragment: "/experience_fragments",
-  };
-
-  const isExoType = (value: string): value is keyof typeof exoEndpoints =>
-    value in exoEndpoints;
-
-  if (!type || !isExoType(type)) {
-    return new Response("Missing preview type (experiences or fragments)", {
-      status: 400,
-    });
+  if (!sessionId) {
+    return new Response(
+      "Missing preview_session_id. Open this preview from the Experience Orchestration canvas.",
+      { status: 400 },
+    );
   }
 
   const draft = await draftMode();
@@ -35,7 +29,8 @@ export async function GET(request: Request) {
   // Next.js sets __prerender_bypass with SameSite=Lax by default, which the
   // browser drops when the app is loaded in a cross-site iframe (the ExO
   // preview pane). Re-set the same value with SameSite=None; Secure so it
-  // flows in the iframe.
+  // flows in the iframe, and Partitioned so browsers that block third-party
+  // cookies still keep it. Without it /preview 404s inside the canvas.
   // https://www.contentful.com/developers/docs/tutorials/preview/live-preview/#my-page-has-an-authorization-cookie-for-logging-in
   const store = await cookies();
   const bypass = store.get("__prerender_bypass")!;
@@ -43,8 +38,9 @@ export async function GET(request: Request) {
     httpOnly: true,
     secure: true,
     sameSite: "none",
+    partitioned: true,
     path: "/",
   });
 
-  redirect(`${exoEndpoints[type]}/${exoId}`);
+  redirect(`/preview?preview_session_id=${encodeURIComponent(sessionId)}`);
 }

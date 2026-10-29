@@ -16,7 +16,7 @@ Open [http://localhost:3000](http://localhost:3000). `/` is a placeholder — th
 | ----------------------------------------------------- | --------------------------------------------------- |
 | `NEXT_PUBLIC_CONTENTFUL_SPACE_ID` / `..._ENV_ID`      | every fetch                                         |
 | `NEXT_PUBLIC_CONTENTFUL_DELIVERY_KEY`                 | published reads                                     |
-| `NEXT_PUBLIC_CONTENTFUL_PREVIEW_KEY`                  | Draft Mode reads, and **all** Fragment reads        |
+| `NEXT_PUBLIC_CONTENTFUL_PREVIEW_KEY`                  | Draft Mode reads and Preview Sessions (sent to the browser) |
 | `NEXT_PUBLIC_CONTENTFUL_DESTINATION_ID`               | path routing on `/[...slug]`; required at build     |
 | `CONTENTFUL_PREVIEW_SECRET`                           | shared secret on the `/api/draft` preview URL       |
 
@@ -25,11 +25,10 @@ Open [http://localhost:3000](http://localhost:3000). `/` is a placeholder — th
 
 ## Routing Experiences
 
-Three routes into the same renderer:
+Two routes into the renderer:
 
-- **`/experiences/[id]`** — the canonical, ID-keyed route. Renders any published Experience by its Contentful sys ID. This is what Contentful's iframe-based preview URL points at, since the CMS only knows the Experience ID (not any downstream URL slug).
 - **`/[...slug]`** — the public route. Resolves the URL path through an ExO **Destination** with [`getExperienceByPath`](./src/lib/client.ts): an Experience node renders, a redirect node becomes a Next `redirect()` (307), and a path no node claims 404s. `/` stays the placeholder in `app/page.tsx`, so a Destination's root node isn't routed yet.
-- **`/experience_fragments/[id]`** — one Fragment rendered on its own. A Fragment normally arrives already embedded in an Experience payload, so this is an authoring aid rather than a visitor-facing URL. Fragments are **preview-only** — the delivery host 404s a Fragment even when it's published — so [`getFragment`](./src/lib/client.ts) always uses the preview host and token and takes no `preview` flag to get wrong.
+- **`/preview`** — the ExO canvas's live preview. Renders a Preview Session, which is the canvas's current, unsaved state, for an experience, fragment, component, or template alike. Reached only through `/api/draft`; see [Draft Mode and preview](#draft-mode-and-preview).
 
 `generateStaticParams` on `/[...slug]` walks the Destination's sitemap, and
 `next build` prerenders every Experience node — the route reports as `● (SSG)`. A
@@ -37,8 +36,7 @@ path published after the build still resolves on demand (`dynamicParams` default
 to `true`). Its only request-time read is `draftMode()`, which returns
 `isEnabled: false` at build time and switches a request carrying the Draft Mode
 cookie to on-demand rendering. There is no `revalidate`, so a prerendered path
-shows the content published as of the last build until the next deploy;
-`/experiences/[id]` renders on demand and is always current.
+shows the content published as of the last build until the next deploy.
 
 Paths are owned by Contentful, not this app: create Channels, Destinations, and
 Destination Nodes with the [Destinations Management API][dma], then **publish the
@@ -51,8 +49,9 @@ yet, and the SDK throws `DestinationPreviewNotSupportedError` rather than send a
 preview token to it. In Draft Mode, `/[...slug]` finds the path in the *published*
 sitemap and fetches that Experience by id from the preview host — draft content,
 published routing. A node that has never been published can't be previewed by
-path; use `/experiences/[id]`, which is what `/api/draft` redirects to anyway. See
-[ADR 0003](./docs/adr/0003-route-public-paths-through-an-exo-destination.md).
+path; preview it from its canvas instead, which goes through `/preview`. See
+[ADR 0003](./docs/adr/0003-route-public-paths-through-an-exo-destination.md) and
+[ADR 0004](./docs/adr/0004-preview-through-exo-preview-sessions.md).
 
 [dma]: https://www.contentful.com/developers/docs/references/destinations-management-api/overview/
 
@@ -66,28 +65,41 @@ and there is nothing to seed from the User-Agent.
 
 ### Draft Mode and preview
 
-Point the Contentful Preview URL at [`/api/draft`](./src/app/api/draft/route.ts)
-with three query params:
+In **Settings → Content preview**, create a preview platform for **All Experience
+entities** with one URL:
 
-| Param    | Value                                          |
-| -------- | ---------------------------------------------- |
-| `secret` | must equal `CONTENTFUL_PREVIEW_SECRET`         |
-| `id`     | the Experience or Fragment sys ID              |
-| `type`   | `experience` or `fragment`                     |
+```text
+https://<your-host>/api/draft?secret=<CONTENTFUL_PREVIEW_SECRET>
+```
 
-The Route Handler validates the secret, enables Draft Mode, and redirects to
-`/experiences/:id` or `/experience_fragments/:id` accordingly. No path lookup, so
-anything can be previewed whether or not a Destination node points at it.
+The canvas creates a Preview Session and appends `preview_session_id`.
+[`/api/draft`](./src/app/api/draft/route.ts) validates the secret, requires the
+session id, enables Draft Mode, and redirects to `/preview`, forwarding the id.
+`{entity.sys.*}` tokens on the URL are harmless but unused: the session decides
+what renders.
 
-One step there is load-bearing and easy to lose: Next sets its `__prerender_bypass`
+[`/preview`](./src/app/preview/page.tsx) 404s without Draft Mode. It fetches the
+session server-side with `fetchPreviewSession`, then
+[`Preview`](./src/app/preview/Preview.tsx) subscribes with `useLivePreview`, so
+edits show before the editor saves. `useLivePreview` also posts the live/static
+status the canvas waits for; without it, the canvas reloads the iframe after each
+save. The subscription runs in the browser, so the preview token goes there too.
+
+That's why the component map lives in a client-safe
+[`experience-config.tsx`](./src/lib/experience-config.tsx), while server code
+imports [`experience-config.server.ts`](./src/lib/experience-config.server.ts),
+which adds the dev-only `globals.css` token check. Live updates resolve without
+that warning.
+
+One step is load-bearing and easy to lose: Next sets its `__prerender_bypass`
 cookie `SameSite=Lax`, which the browser drops when the app loads inside ExO's
-cross-site preview iframe — Draft Mode then silently never turns on. The handler
-re-sets the same cookie value with `SameSite=None; Secure`.
+cross-site preview iframe — Draft Mode then silently never turns on and `/preview`
+404s. The handler re-sets the same cookie value with
+`SameSite=None; Secure; Partitioned`. See
+[ADR 0004](./docs/adr/0004-preview-through-exo-preview-sessions.md).
 
 > **TODO:** When the Destinations Delivery API ships a preview host, drop the
 > sitemap bridge in `getExperienceByPath` and pass `preview` straight through.
-> `/experiences/[id]` can stay as an ID-keyed fallback, or redirect to the node's
-> path for SEO.
 
 ## Design values and styling
 
@@ -297,9 +309,10 @@ grep -rn "<symbol>" node_modules/@contentful/
 
 Grep the whole scope, not `experiences-react/dist` alone. `experiences-react` is a
 facade that re-exports from `experiences-sdk-core`, `experiences-design`,
-`experiences-client`, and `experience-delivery`, so the narrower path reports real
-APIs as missing — `client.fragment.getFragment` in
-[`src/lib/client.ts`](./src/lib/client.ts) is only in `experience-delivery`.
+`experiences-client`, `experience-delivery`, and `experiences-live-preview`, so the
+narrower path reports real APIs as missing — it re-exports `fetchPreviewSession`, used in
+[`src/lib/client.ts`](./src/lib/client.ts), by name only; its signature is only in
+`experiences-live-preview`.
 
 Two corollaries on that Package row. Match `@contentful/experiences-sdk-react` as a
 whole name: `-sdk-` is not the tell, because **`@contentful/experiences-sdk-core` is

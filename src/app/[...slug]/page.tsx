@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { ServerExperienceRenderer } from "@contentful/experiences-react";
 
 import { getDestinationPaths, getExperienceByPath } from "@/lib/client";
-import { experienceConfig } from "@/lib/experience-config";
+import { experienceConfig } from "@/lib/experience-config.server";
 
 // `/` is served by app/page.tsx; a required catch-all can't take an empty slug.
 export const generateStaticParams = async () =>
