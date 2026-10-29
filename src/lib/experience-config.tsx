@@ -1,6 +1,3 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
 import {
   type Components,
   type Config,
@@ -14,6 +11,11 @@ import { Duplex } from "@/components/Duplex";
 import { Grid } from "@/components/Grid";
 import { Hero } from "@/components/Hero";
 
+/**
+ * Client-safe: the live preview imports this module into the browser, so it
+ * must not touch the filesystem. Server code imports
+ * `experience-config.server.ts`, which adds the dev-only token check.
+ */
 const components: Components = {
   card: Card,
   duplex: Duplex,
@@ -32,50 +34,44 @@ const components: Components = {
 const tokenToCssVar = (id: string) => `--${id.replaceAll(".", "-")}`;
 
 /**
- * The set of variable names declared in globals.css, read straight from the
- * stylesheet so there is no list to keep in sync. Dev only — it exists purely to
- * make a bad token id loud, and production never touches the filesystem.
- *
- * `null` means "cannot check", and the resolver then trusts every token. A
- * missing diagnostic must never become a rendering failure.
+ * `knownVars` is the set of variable names declared in globals.css, or `null`
+ * for "cannot check", in which case every token is trusted. A missing
+ * diagnostic must never become a rendering failure.
  */
-const readThemeVars = (): Set<string> | null => {
-  try {
-    const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
-    const block = css.match(/@theme[^{]*\{([\s\S]*?)\n\}/)?.[1];
-    if (!block) return null;
-    return new Set([...block.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((m) => m[1]));
-  } catch {
-    return null;
-  }
-};
+export const createResolveToken =
+  (knownVars: Set<string> | null): ResolveToken =>
+  (token) => {
+    const name = tokenToCssVar(token.value);
 
-const knownVars =
-  process.env.NODE_ENV === "production" ? null : readThemeVars();
+    // `var(--nope)` is a perfectly valid string that the browser silently
+    // discards at computed-value time, so a bad token id would otherwise fail
+    // with no diagnostic at all.
+    //
+    // Return null, not undefined: since SDK 0.13, undefined keeps the raw
+    // `{ type: 'DesignToken' }` object in the design bag, and `toCss` would
+    // copy it into inline style. `toCss` skips null, so the key is dropped.
+    // See docs/adr/0002-*.md.
+    if (knownVars && !knownVars.has(name)) {
+      console.warn(
+        `[tokens] No CSS variable ${name} for design token "${token.value}". ` +
+          `Add it to the @theme block in globals.css, or fix the token path.`,
+      );
+      return null;
+    }
 
-const resolveToken: ResolveToken = (token) => {
-  const name = tokenToCssVar(token.value);
+    return `var(${name})`;
+  };
 
-  // `var(--nope)` is a perfectly valid string that the browser silently discards
-  // at computed-value time, so a bad token id would otherwise fail with no
-  // diagnostic at all.
-  //
-  // Return null, not undefined: since SDK 0.13, undefined keeps the raw
-  // `{ type: 'DesignToken' }` object in the design bag, and `toCss` would
-  // copy it into inline style. `toCss` skips null, so the key is dropped.
-  // See docs/adr/0002-*.md.
-  if (knownVars && !knownVars.has(name)) {
-    console.warn(
-      `[tokens] No CSS variable ${name} for design token "${token.value}". ` +
-        `Add it to the @theme block in globals.css, or fix the token path.`,
-    );
-    return null;
-  }
+export const createExperienceConfig = (
+  knownVars: Set<string> | null,
+): Config => ({ components, resolveToken: createResolveToken(knownVars) });
 
-  return `var(${name})`;
-};
-
-export const experienceConfig: Config = { components, resolveToken };
+/**
+ * Unchecked: the browser can't read globals.css, so live preview updates
+ * resolve without the unknown-token warning. The server-rendered initial plan
+ * still gets it.
+ */
+export const experienceConfig = createExperienceConfig(null);
 
 // const templates: Templates = {};
-// export const experienceConfig: Config = { components, templates, resolveToken };
+// Add `templates` to the object `createExperienceConfig` returns.

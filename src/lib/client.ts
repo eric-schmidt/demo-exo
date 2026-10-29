@@ -1,12 +1,12 @@
 import {
-  createClient,
   fetchDestinationSitemap,
   fetchExperience,
+  fetchPreviewSession,
   NotFoundError,
-  resolveExperience,
+  type PreviewSessionOptions,
   type SitemapPathItem,
 } from "@contentful/experiences-react";
-import { experienceConfig } from "@/lib/experience-config";
+import { experienceConfig } from "@/lib/experience-config.server";
 
 const spaceId = process.env.NEXT_PUBLIC_CONTENTFUL_SPACE_ID!;
 const environmentId = process.env.NEXT_PUBLIC_CONTENTFUL_ENV_ID!;
@@ -75,7 +75,7 @@ export const getDestinationPaths = async (): Promise<SitemapPathItem[]> => {
  * looks the path up in the published sitemap and fetches that Experience by id
  * from the preview host. The path itself is therefore always the published
  * one: a node that has never been published can't be previewed by path, only
- * at `/experiences/[id]`. Paths the sitemap doesn't list (redirects included)
+ * from its canvas through `/preview`. Paths the sitemap doesn't list (redirects included)
  * fall through to delivery resolution.
  */
 export const getExperienceByPath = async ({
@@ -105,37 +105,26 @@ export const getExperienceByPath = async ({
 };
 
 /**
- * `fetchExperience` reaches `/experiences/:id` and the Destination endpoints but
- * has no Fragment branch, so a Fragment id handed to it 404s. Until the SDK grows a combined surface, compose the two
- * halves it would have composed for us: the delivery client's own Experience
- * Fragment endpoint, then the same `resolveExperience` pass.
- *
- * Use `experienceFragment`, not the legacy `fragment` client: the latter still
- * returns tree nodes keyed `componentType`, which the renderer silently drops
- * since the SPA-4822 rename.
- *
- * Fragments are preview-only — the endpoint 404s on the delivery host even for
- * a published Fragment — so this always uses the preview host and token, with
- * no `preview` flag to get wrong.
+ * What the browser needs to subscribe to a Preview Session. The live
+ * subscription runs client-side, so the preview token goes to the browser —
+ * it already does, as a `NEXT_PUBLIC_` variable.
  */
-const previewClient = createClient({
-  accessToken: previewToken,
-  host: previewHost,
+export const previewSessionOptions = (
+  sessionId: string,
+): PreviewSessionOptions => ({
+  spaceId,
+  environmentId,
+  sessionId,
+  previewToken,
 });
 
-export const getFragment = async ({
-  fragmentId,
-  locale = "en-US",
-}: {
-  fragmentId: string;
-  locale?: string;
-}) => {
-  const payload = await previewClient.experienceFragment.get(
-    spaceId,
-    environmentId,
-    fragmentId,
-    { locale },
+/**
+ * The canvas's current, unsaved state for a Preview Session, as a render plan.
+ * Throws `NotFoundError` for an expired or unknown session.
+ */
+export const getPreviewSession = (sessionId: string) =>
+  fetchPreviewSession(
+    { spaceId, environmentId, sessionId },
+    { previewToken, host: previewHost },
+    { config: experienceConfig },
   );
-
-  return resolveExperience(payload, experienceConfig);
-};

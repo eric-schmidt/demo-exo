@@ -33,9 +33,9 @@ Contentful has two "Experiences" products. This repo uses **Experience Orchestra
 - Blanket "all components must be `'use client'`" rules (ExO components are server-first; `'use client'` is only needed when a component calls a client-only hook like `useDesignValues` or `useExperience`)
 
 **Correct ExO surface (for reference):**
-- Package: `@contentful/experiences-react`, which re-exports from `experiences-sdk-core`, `experiences-design`, `experiences-client`, and `experience-delivery`
+- Package: `@contentful/experiences-react`, which re-exports from `experiences-sdk-core`, `experiences-design`, `experiences-client`, `experience-delivery`, and `experiences-live-preview`
 - APIs: `defineComponent` (singular) / `defineTemplate`, `fetchExperience`, `ServerExperienceRenderer` / `ClientExperienceRenderer`, `useDesignValues`, `toCss`, `useExperience`
 - Registration: a bare component is the common case and what this repo uses (`{ hero: Hero }`). `defineComponent<Props>({ component, defaults?, resolveData? })` is the fuller shape, for prop narrowing, `defaults`, or a `resolveData` hook — not a conversion to make to working registrations.
 
-**Verification step before answering any ExO-SDK question:** grep the symbol across all of `node_modules/@contentful/`. Grepping `experiences-react/dist/` alone yields false negatives, because re-exported surface lives in the sibling packages — `client.fragment.getFragment`, used in `src/lib/client.ts`, is only in `experience-delivery`. A symbol in none of the `@contentful/` packages is Studio, hallucinated, or CMA-side: ComponentType authoring fields such as `allowedResources` are defined by the Management API and never appear in the render SDK.
+**Verification step before answering any ExO-SDK question:** grep the symbol across all of `node_modules/@contentful/`. Grepping `experiences-react/dist/` alone yields false negatives, because re-exported surface lives in the sibling packages — `fetchPreviewSession`, used in `src/lib/client.ts`, is re-exported by name only; its signature is only in `experiences-live-preview`. A symbol in none of the `@contentful/` packages is Studio, hallucinated, or CMA-side: ComponentType authoring fields such as `allowedResources` are defined by the Management API and never appear in the render SDK.
 <!-- END:contentful-exo-not-studio -->
