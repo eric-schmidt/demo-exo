@@ -4,21 +4,33 @@ import { join } from "node:path";
 import {
   type Components,
   type Config,
+  type ExperienceTemplates,
   type ResolveToken,
-  // defineComponent,
-  // type Templates,
+  defineExperienceTemplate,
 } from "@contentful/experiences-react";
 
 import { Card } from "@/components/Card";
 import { Duplex } from "@/components/Duplex";
 import { Grid } from "@/components/Grid";
 import { Hero } from "@/components/Hero";
+import { SeoTemplate } from "@/components/SeoTemplate";
 
 const components: Components = {
   card: Card,
   duplex: Duplex,
   grid: Grid,
   hero: Hero,
+};
+
+/**
+ * Coded Experience Templates — the root node an experience is built from. Keyed
+ * by `experienceTemplateId` (last slash-segment of the template node's
+ * `experienceTemplate.sys.urn`). `seoPage` owns the page's SEO `<head>` and
+ * wraps the body via its `content` slot; the id here must match the template
+ * created in ExO.
+ */
+const experienceTemplates: ExperienceTemplates = {
+  seoPage: defineExperienceTemplate({ component: SeoTemplate }),
 };
 
 /**
@@ -75,7 +87,8 @@ const resolveToken: ResolveToken = (token) => {
   return `var(${name})`;
 };
 
-export const experienceConfig: Config = { components, resolveToken };
-
-// const templates: Templates = {};
-// export const experienceConfig: Config = { components, templates, resolveToken };
+export const experienceConfig: Config = {
+  components,
+  experienceTemplates,
+  resolveToken,
+};
